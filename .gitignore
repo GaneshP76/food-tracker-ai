@@ -5,6 +5,12 @@
 +# root virtual-env
 +.venv/
 
+# local Python virtual-env
+.venv/
+venv/
+env/
+backend/.venv/
+ 
 
 # Virtual environments
 + .venv/
