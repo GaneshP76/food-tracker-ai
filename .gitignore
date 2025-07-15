@@ -2,6 +2,10 @@
 # Python (backend)
 # ───────────────────────────────────────────────────────────────
 
++# root virtual-env
++.venv/
+
+
 # Virtual environments
 + .venv/
   backend/.venv/
