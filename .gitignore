@@ -3,9 +3,11 @@
 # ───────────────────────────────────────────────────────────────
 
 # Virtual environments
-backend/.venv/
-venv/
-env/
++ .venv/
+  backend/.venv/
+  venv/
+  env/
+
 
 # Byte‑compiled / cache
 __pycache__/
