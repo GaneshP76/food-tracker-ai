@@ -30,6 +30,16 @@ class Nutrition(SQLModel, table=True):
     protein: float = Field(default=0.0, ge=0, description="Protein (g)")
     carbs: float = Field(default=0.0, ge=0, description="Carbohydrates (g)")
     fat: float = Field(default=0.0, ge=0, description="Fat (g)")
+    sugars: Optional[float] = Field(default=0.0, ge=0, description="Total Sugars (g)")
+
+    # Cholesterol
+    cholesterol: Optional[float] = Field(default=0.0, ge=0, description="Cholesterol (mg)")
+
+    # Detailed fatty acids
+    sat_fat: Optional[float] = Field(default=0.0, ge=0, description="Saturated Fat (g)")
+    mono_fat: Optional[float] = Field(default=0.0, ge=0, description="Monounsaturated Fat (g)")
+    poly_fat: Optional[float] = Field(default=0.0, ge=0, description="Polyunsaturated Fat (g)")
+    trans_fat: Optional[float] = Field(default=0.0, ge=0, description="Trans Fat (g)")
 
     # Micronutrients – Vitamins
     vitamin_a: Optional[float] = Field(default=0.0, ge=0, description="Vitamin A (µg)")
@@ -62,4 +72,4 @@ class Nutrition(SQLModel, table=True):
     fluoride: Optional[float] = Field(default=0.0, ge=0, description="Fluoride (mg)")
 
     # Back-reference to FoodLog
-    food_log: "FoodLog" = Relationship(back_populates="nutrition")
+    food_log: Optional[FoodLog] = Relationship(back_populates="nutrition")
