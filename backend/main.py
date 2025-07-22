@@ -4,15 +4,15 @@ from sqlmodel import SQLModel, Session, select, func
 from sqlalchemy import text
 from sqlalchemy import desc
 from typing import List, Optional
-from datetime import date, datetime, timedelta, time
+from datetime import date, datetime, timedelta, time, timezone
 from zoneinfo import ZoneInfo
 
 from src.database import engine, get_session
 from src.models import FoodLog, FoodLogCreate, FoodLogRead, Nutrition
 from src.services.nutrition import fetch_nutrition
 
-# Constant for UTC timezone
-UTC = ZoneInfo("UTC")
+# Constant for UTC timezone using built-in timezone
+UTC = timezone.utc
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -193,7 +193,7 @@ def weekly_summary(
 @app.get("/summaries/monthly")
 def monthly_summary(
     session: Session = Depends(get_session),
-    year: int = Query(..., ge=1900, le=datetime.now(UTC).year),
+    year: int = Query(..., ge=1900, le=datetime.now().year),
     month: int = Query(..., ge=1, le=12)
 ):
     # UTC month window
@@ -229,7 +229,7 @@ def monthly_summary(
 @app.get("/summaries/yearly")
 def yearly_summary(
     session: Session = Depends(get_session),
-    year: int = Query(..., ge=1900, le=datetime.now(UTC).year)
+    year: int = Query(..., ge=1900, le=datetime.now().year)
 ):
     start = datetime(year, 1, 1, tzinfo=UTC)
     end = datetime(year+1, 1, 1, tzinfo=UTC)
