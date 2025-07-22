@@ -4,6 +4,7 @@
 
 +# root virtual-env
 +.venv/
+.env
 
 # local Python virtual-env
 .venv/
