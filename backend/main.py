@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from src.database import engine, get_session
 from src.models import FoodLog, FoodLogCreate, FoodLogRead, Nutrition
 from src.services.nutrition import fetch_nutrition
+from src.services.feedback import generate_feedback
 
 # Constant for UTC timezone using built-in timezone
 UTC = timezone.utc
@@ -69,7 +70,6 @@ def read_foodlogs(
 ):
     stmt = select(FoodLog)
     if log_date:
-        # Interpret date as UTC day boundary
         start = datetime.combine(log_date, time.min).replace(tzinfo=UTC)
         end = start + timedelta(days=1)
         stmt = stmt.where(
@@ -79,46 +79,42 @@ def read_foodlogs(
     stmt = stmt.order_by(FoodLog.timestamp).offset(skip).limit(limit)
     return session.exec(stmt).all()
 
-# --- SUMMARY ENDPOINTS WITH TIMEZONE SUPPORT ---
+# --- Helper functions for summaries ---
 
-@app.get("/summaries/daily")
-def daily_summary(
-    session: Session = Depends(get_session),
-    summary_date: date = Query(..., alias="date"),
-    tz: str = Query("UTC", description="IANA timezone name, e.g. 'America/Chicago'")
-):
-    # Local window in user's timezone
+def get_daily_summary(session: Session, summary_date: date, tz: str):
     local_zone = ZoneInfo(tz)
     start_local = datetime.combine(summary_date, time.min).replace(tzinfo=local_zone)
-    end_local   = start_local + timedelta(days=1)
-    # Convert to UTC for querying
+    end_local = start_local + timedelta(days=1)
     start_utc = start_local.astimezone(UTC)
-    end_utc   = end_local.astimezone(UTC)
+    end_utc = end_local.astimezone(UTC)
 
-    # Aggregate totals
     agg = session.exec(
         select(
             func.sum(Nutrition.calories).label("calories"),
             func.sum(Nutrition.protein).label("protein"),
             func.sum(Nutrition.carbs).label("carbs"),
             func.sum(Nutrition.fat).label("fat")
-        ).join(FoodLog).where(
+        )
+        .join(FoodLog)
+        .where(
             FoodLog.timestamp >= start_utc,
-            FoodLog.timestamp <  end_utc
+            FoodLog.timestamp < end_utc
         )
     ).one()
 
-    # Top 3 foods by calories
     top_foods = session.exec(
         select(
             FoodLog.food_name,
             func.sum(Nutrition.calories).label("total_calories")
-        ).join(Nutrition).where(
+        )
+        .join(Nutrition)
+        .where(
             FoodLog.timestamp >= start_utc,
-            FoodLog.timestamp <  end_utc
-        ).group_by(FoodLog.food_name)
-         .order_by(desc("total_calories"))
-         .limit(3)
+            FoodLog.timestamp < end_utc
+        )
+        .group_by(FoodLog.food_name)
+        .order_by(desc("total_calories"))
+        .limit(3)
     ).all()
 
     return {
@@ -126,15 +122,22 @@ def daily_summary(
         "timezone": tz,
         "totals": {
             "calories": agg.calories or 0,
-            "protein":  agg.protein or 0,
-            "carbs":     agg.carbs or 0,
-            "fat":       agg.fat or 0
+            "protein": agg.protein or 0,
+            "carbs": agg.carbs or 0,
+            "fat": agg.fat or 0
         },
         "top_foods": [
-            {"food_name": name, "calories": total}
-            for name, total in top_foods
+            {"food_name": n, "calories": c} for n, c in top_foods
         ]
     }
+
+@app.get("/summaries/daily")
+def daily_summary(
+    session: Session = Depends(get_session),
+    summary_date: date = Query(..., alias="date"),
+    tz: str = Query("UTC", description="IANA timezone name, e.g. 'America/Chicago'")
+):
+    return get_daily_summary(session, summary_date, tz)
 
 @app.get("/summaries/weekly")
 def weekly_summary(
@@ -142,23 +145,23 @@ def weekly_summary(
     start_date: date = Query(..., alias="start_date"),
     tz: str = Query("UTC", description="IANA timezone name, e.g. 'Europe/London'")
 ):
-    # Local week window
     local_zone = ZoneInfo(tz)
     start_local = datetime.combine(start_date, time.min).replace(tzinfo=local_zone)
-    end_local   = start_local + timedelta(days=7)
-    # Convert to UTC
+    end_local = start_local + timedelta(days=7)
     start_utc = start_local.astimezone(UTC)
-    end_utc   = end_local.astimezone(UTC)
+    end_utc = end_local.astimezone(UTC)
 
     agg = session.exec(
         select(
-            func.sum(Nutrition.calories),
-            func.sum(Nutrition.protein),
-            func.sum(Nutrition.carbs),
-            func.sum(Nutrition.fat)
-        ).join(FoodLog).where(
+            func.sum(Nutrition.calories).label("calories"),
+            func.sum(Nutrition.protein).label("protein"),
+            func.sum(Nutrition.carbs).label("carbs"),
+            func.sum(Nutrition.fat).label("fat")
+        )
+        .join(FoodLog)
+        .where(
             FoodLog.timestamp >= start_utc,
-            FoodLog.timestamp <  end_utc
+            FoodLog.timestamp < end_utc
         )
     ).one()
 
@@ -166,92 +169,52 @@ def weekly_summary(
         select(
             FoodLog.food_name,
             func.sum(Nutrition.calories).label("total_calories")
-        ).join(Nutrition).where(
+        )
+        .join(Nutrition)
+        .where(
             FoodLog.timestamp >= start_utc,
-            FoodLog.timestamp <  end_utc
-        ).group_by(FoodLog.food_name)
-         .order_by(desc("total_calories"))
-         .limit(3)
+            FoodLog.timestamp < end_utc
+        )
+        .group_by(FoodLog.food_name)
+        .order_by(desc("total_calories"))
+        .limit(3)
     ).all()
 
     return {
         "week_start": start_date,
-        "week_end":   (start_date + timedelta(days=6)),
-        "timezone":   tz,
+        "week_end": start_date + timedelta(days=6),
+        "timezone": tz,
         "totals": {
-            "calories": agg[0] or 0,
-            "protein":  agg[1] or 0,
-            "carbs":     agg[2] or 0,
-            "fat":       agg[3] or 0
+            "calories": agg.calories or 0,
+            "protein": agg.protein or 0,
+            "carbs": agg.carbs or 0,
+            "fat": agg.fat or 0
         },
-        "top_foods": [
-            {"food_name": name, "calories": total}
-            for name, total in top_foods
-        ]
+        "top_foods": [{"food_name": n, "calories": c} for n, c in top_foods]
     }
 
-@app.get("/summaries/monthly")
-def monthly_summary(
+from src.services.feedback import test_ollama_connection
+
+@app.get("/health/ollama")
+async def ollama_health_check():
+    """Check Ollama service health"""
+    return await test_ollama_connection()
+
+@app.get("/feedback/daily")
+async def daily_feedback(
     session: Session = Depends(get_session),
-    year: int = Query(..., ge=1900, le=datetime.now().year),
-    month: int = Query(..., ge=1, le=12)
+    summary_date: date = Query(..., alias="date"),
+    tz: str = Query("UTC", description="IANA timezone (e.g. America/Chicago)")
 ):
-    # UTC month window
-    start = datetime(year, month, 1, tzinfo=UTC)
-    if month == 12:
-        end = datetime(year+1, 1, 1, tzinfo=UTC)
-    else:
-        end = datetime(year, month+1, 1, tzinfo=UTC)
-
-    agg = session.exec(
-        select(
-            func.sum(Nutrition.calories),
-            func.sum(Nutrition.protein),
-            func.sum(Nutrition.carbs),
-            func.sum(Nutrition.fat)
-        ).join(FoodLog).where(
-            FoodLog.timestamp >= start,
-            FoodLog.timestamp <  end
-        )
-    ).one()
-
-    return {
-        "year": year,
-        "month": month,
-        "totals": {
-            "calories": agg[0] or 0,
-            "protein":  agg[1] or 0,
-            "carbs":     agg[2] or 0,
-            "fat":       agg[3] or 0
-        }
-    }
-
-@app.get("/summaries/yearly")
-def yearly_summary(
-    session: Session = Depends(get_session),
-    year: int = Query(..., ge=1900, le=datetime.now().year)
-):
-    start = datetime(year, 1, 1, tzinfo=UTC)
-    end = datetime(year+1, 1, 1, tzinfo=UTC)
-
-    agg = session.exec(
-        select(
-            func.sum(Nutrition.calories),
-            func.sum(Nutrition.protein),
-            func.sum(Nutrition.carbs),
-            func.sum(Nutrition.fat)
-        ).join(FoodLog).where(
-            FoodLog.timestamp >= start,
-            FoodLog.timestamp <  end
-        )
-    ).one()
-
-    return {
-        "year": year,
-        "totals": {
-            "calories": agg[0] or 0,
-            "protein":  agg[1] or 0,
-            "carbs":     agg[2] or 0,
-            "fat":       agg[3] or 0
-        }
-    }
+    # Generate feedback based on daily summary
+    summary = get_daily_summary(session, summary_date, tz)
+    tip_prompt = (
+        f"You’re a friendly, supportive nutrition coach. On {summary_date} ({tz}), "
+        f"the user consumed {summary['totals']['calories']} kcal, {summary['totals']['protein']} g protein, "
+        f"{summary['totals']['carbs']} g carbs, and {summary['totals']['fat']} g fat. "
+        "1) Provide a brief health summary comparing intake to goals.\n"
+        "2) Suggest two balanced meal ideas (with rough macro breakdowns) to meet remaining targets.\n"
+        "3) Offer one concise, actionable tip to close the top nutrient gap."
+    )
+    tip = await generate_feedback(tip_prompt)
+    return {"date": summary_date, "timezone": tz, "tip": tip}

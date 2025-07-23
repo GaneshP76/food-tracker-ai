@@ -1,6 +1,9 @@
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .models import Nutrition
 
 class FoodLogBase(SQLModel):
     food_name: str
