@@ -1,6 +1,6 @@
 # 🥗 Food Tracker AI  
 
-A **FastAPI service** for logging meals, attaching **USDA FoodData Central nutrition facts**, storing them in **SQLModel**, and generating **AI coaching feedback** via Ollama.  
+A **FastAPI service** for logging meals, attaching **USDA FoodData Central nutrition facts**, storing them in **SQLModel**, and generating **AI coaching feedback** via Ollama.  Still in development
 
 ---
 
